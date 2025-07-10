@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <title>Ollama 聊天演示</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; }
+        #history { border: 1px solid #ccc; padding: 10px; height: 400px; overflow-y: auto; background: #f9f9f9; }
+        .user { color: #1976d2; margin: 5px 0; }
+        .ai { color: #388e3c; margin: 5px 0; }
+        #prompt { width: 80%; height: 60px; }
+        #send { padding: 8px 16px; }
+    </style>
+</head>
+<body>
+<h2>Ollama 聊天演示</h2>
+<div id="history"></div>
+<br>
+<textarea id="prompt" placeholder="请输入你的问题..."></textarea>
+<button id="send">发送</button>
+
+<script>
+const historyDiv = document.getElementById('history');
+const promptInput = document.getElementById('prompt');
+const sendBtn = document.getElementById('send');
+let chatHistory = [];
+
+function renderHistory() {
+    historyDiv.innerHTML = '';
+    chatHistory.forEach(item => {
+        const div = document.createElement('div');
+        div.className = item.role;
+        let content = (item.role === 'user' ? '用户: ' : 'AI: ') + item.content;
+        // 处理 <think></think> 标签为灰色
+        content = content.replace(/<think>([\s\S]*?)<\/think>/g, '<span style="color:gray;">$1<br></span>');
+        div.innerHTML = content;
+        historyDiv.appendChild(div);
+    });
+    historyDiv.scrollTop = historyDiv.scrollHeight;
+}
+
+sendBtn.onclick = async function() {
+    const prompt = promptInput.value.trim();
+    if (!prompt) return;
+    chatHistory.push({role: 'user', content: prompt});
+    renderHistory();
+    promptInput.value = '';
+    let aiMsg = '';
+    // SSE/流式响应
+    const response = await fetch(`/ollama?prompt=${encodeURIComponent(prompt)}`);
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder('utf-8');
+    while (true) {
+        const {done, value} = await reader.read();
+        if (done) break;
+        aiMsg += decoder.decode(value);
+        // 实时渲染AI消息
+        if (chatHistory[chatHistory.length-1].role === 'ai') {
+            chatHistory[chatHistory.length-1].content = aiMsg;
+        } else {
+            chatHistory.push({role: 'ai', content: aiMsg});
+        }
+        renderHistory();
+    }
+};
+</script>
+</body>
+</html>
